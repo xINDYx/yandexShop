@@ -1,46 +1,60 @@
 package ru.yandex.shop.service;
 
-import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.shop.model.Cart;
 import ru.yandex.shop.model.Order;
 import ru.yandex.shop.model.OrderItem;
+import ru.yandex.shop.repository.OrderItemRepository;
 import ru.yandex.shop.repository.OrderRepository;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
 @Service
 public class OrderService {
     private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
 
-    public OrderService(OrderRepository orderRepository) {
+    public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository) {
         this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
     }
 
-    public List<Order> findAllOrders() {
+    public Flux<Order> findAllOrders() {
         return orderRepository.findAll();
     }
 
-    public Order findById(Long id) {
-        return orderRepository.findById(id).orElseThrow(() -> new RuntimeException("Order not found"));
+    public Mono<Order> findById(Long id) {
+        return orderRepository.findById(id)
+                .switchIfEmpty(Mono.error(new RuntimeException("Order not found")));
     }
 
     @Transactional
-    public Order createOrder(List<Cart> carts) {
-        Order order = new Order();
+    public Mono<Order> createOrder(Flux<Cart> carts) {
+        return carts.collectList()
+                .flatMap(cartList -> {
+                    Order order = new Order();
+                    long totalSum = cartList.stream()
+                            .mapToLong(cart -> cart.getPrice() * cart.getCount())
+                            .sum();
+                    order.setTotalSum(totalSum);
 
-        long totalSum = carts.stream()
-                .mapToLong(cart -> cart.getPrice() * cart.getCount())
-                .sum();
-        order.setTotalSum(totalSum);
+                    return orderRepository.save(order)
+                            .flatMap(savedOrder -> {
+                                List<Mono<OrderItem>> updatedItems = cartList.stream()
+                                        .map(cart -> {
+                                            OrderItem orderItem = new OrderItem(
+                                                    null, cart.getTitle(), cart.getCount(), cart.getPrice(), cart.getImgPath(), savedOrder.getId());
+                                            return orderItemRepository.save(orderItem);
+                                        })
+                                        .collect(Collectors.toList());
 
-        List<OrderItem> orderItems = carts.stream()
-                .map(cart -> new OrderItem(null, cart.getTitle(), cart.getCount(), cart.getPrice(), cart.getImgPath(),order))
-                .collect(Collectors.toList());
-
-        order.setItems(orderItems);
-
-        return orderRepository.save(order);
+                                return Mono.zip(updatedItems, (results) -> savedOrder);
+                            });
+                });
     }
 }

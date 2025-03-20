@@ -1,15 +1,12 @@
 package ru.yandex.shop.service;
 
-import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.shop.exception.ProductNotFoundException;
 import ru.yandex.shop.model.Cart;
-import ru.yandex.shop.model.Product;
 import ru.yandex.shop.repository.CartRepository;
 import ru.yandex.shop.repository.ProductRepository;
-
-import java.util.List;
-import java.util.Optional;
 
 @Service
 public class CartService {
@@ -21,50 +18,46 @@ public class CartService {
         this.productRepository = productRepository;
     }
 
-    public List<Cart> findAll() {
+    public Flux<Cart> findAll() {
         return cartRepository.findAll();
     }
 
-    public Cart findById(Long id) {
-        return cartRepository.findById(id).orElse(null);
+    public Mono<Cart> findById(Long id) {
+        return cartRepository.findById(id);
     }
 
-    public void deleteById(Long id) {
-        cartRepository.deleteById(id);
+    public Mono<Void> deleteById(Long id) {
+        return cartRepository.deleteById(id);
     }
 
-    public void clearCart(){
-        cartRepository.deleteAll();
+    public Mono<Void> clearCart() {
+        return cartRepository.deleteAll();
     }
 
-    @Transactional
-    public void addToCart(Long productId) {
-        Product product = productRepository.findById(productId).orElseThrow(() -> new ProductNotFoundException("Product with id " + productId + " not found"));
-
-        Cart cart = cartRepository.findByProductId(productId)
-                .map(existingCart -> {
-                    existingCart.setCount(product.getCount());
-                    return existingCart;
-                })
-                .orElseGet(() -> new Cart(null, productId, product.getImgPath(), product.getTitle(), product.getDescription(), product.getCount(), product.getPrice()));
-
-        cartRepository.save(cart);
+    public Mono<Void> addToCart(Long productId) {
+        return productRepository.findById(productId)
+                .switchIfEmpty(Mono.error(new ProductNotFoundException("Product with id " + productId + " not found")))
+                .flatMap(product -> cartRepository.findByProductId(productId)
+                        .defaultIfEmpty(new Cart(null, productId, product.getImgPath(), product.getTitle(), product.getDescription(), product.getCount(), product.getPrice()))
+                        .map(cart -> {
+                            cart.setCount(product.getCount());
+                            return cart;
+                        }))
+                .flatMap(cartRepository::save)
+                .then();
     }
 
-    @Transactional
-    public void deleteFromCart(Long productId) {
-        Optional<Cart> cart = cartRepository.findByProductId(productId);
-
-        cart.ifPresent(cartRepository::delete);
+    public Mono<Void> deleteFromCart(Long productId) {
+        return cartRepository.findByProductId(productId)
+                .flatMap(cartRepository::delete)
+                .then();
     }
 
-    @Transactional
-    public void increaseCountByOne(Long id) {
-        cartRepository.increaseCountByOne(id);
+    public Mono<Void> increaseCountByOne(Long id) {
+        return cartRepository.increaseCountByOne(id).then();
     }
 
-    @Transactional
-    public void decreaseCountByOne(Long id) {
-        cartRepository.decreaseCountByOne(id);
+    public Mono<Void> decreaseCountByOne(Long id) {
+        return cartRepository.decreaseCountByOne(id).then();
     }
 }

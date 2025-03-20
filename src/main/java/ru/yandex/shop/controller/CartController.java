@@ -1,20 +1,20 @@
 package ru.yandex.shop.controller;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import ru.yandex.shop.model.Cart;
-import ru.yandex.shop.model.Order;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
+import ru.yandex.shop.dto.CartView;
 import ru.yandex.shop.service.CartService;
 import ru.yandex.shop.service.OrderService;
-import ru.yandex.shop.service.ProductService;
 
-import java.util.List;
+import java.net.URI;
 
 @Slf4j
-@Controller
+@RestController
 @RequestMapping
 public class CartController {
 
@@ -27,66 +27,65 @@ public class CartController {
     }
 
     @GetMapping("/cart/items")
-    public String listProducts(Model model) {
+    public Mono<ResponseEntity> listProducts() {
+        return cartService.findAll()
+                .collectList()
+                .map(cart -> {
+                    boolean hasItems = !cart.isEmpty();
+                    long totalPrice = cart.stream()
+                            .mapToLong(item -> item.getPrice() * item.getCount())
+                            .sum();
 
-        List<Cart> cart = cartService.findAll();
-        boolean hasItems = !cart.isEmpty();
-
-        long totalPrice = cart.stream()
-                .mapToLong(item -> item.getPrice() * item.getCount())
-                .sum();
-
-        model.addAttribute("items", cart);
-        model.addAttribute("total", totalPrice);
-        model.addAttribute("hasItems", hasItems);
-
-        return "cart";
+                    return ResponseEntity.ok()
+                            .body(new CartView(cart, totalPrice, hasItems));
+                });
     }
 
     @PostMapping("/cart/items/{id}")
-    public String countAction(
+    public Mono<ResponseEntity<Object>> countAction(
             @PathVariable("id") Long id,
-            @RequestParam("action") String action,
-            Model model) {
+            @RequestParam("action") String action) {
 
-        try {
-            switch (action) {
-                case "minus":
-                    if (cartService.findById(id).getCount() > 0) {
-                        cartService.decreaseCountByOne(id);
-                        break;
+        return cartService.findById(id)
+                .flatMap(cart -> {
+                    switch (action) {
+                        case "minus":
+                            if (cart.getCount() > 0) {
+                                cartService.decreaseCountByOne(id);
+                            }
+                            break;
+                        case "plus":
+                            cartService.increaseCountByOne(id);
+                            break;
+                        case "delete":
+                            cartService.deleteById(id);
+                            break;
+                        default:
+                            return Mono.error(new IllegalArgumentException("Invalid action"));
                     }
-                    break;
-                case "plus":
-                    cartService.increaseCountByOne(id);
-                    break;
-                case "delete":
-                    cartService.deleteById(id);
-                    break;
-                default:
-                    return "redirect:/error";
-            }
-        } catch (Exception e) {
-            return "redirect:/error";
-        }
-
-        return "redirect:/cart/items";
+                    return Mono.just(ResponseEntity.ok().build());
+                })
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("Cart item not found")));
     }
 
-    @PostMapping("/buy")
-    public String buyItems(RedirectAttributes redirectAttrs) {
-        List<Cart> cart = cartService.findAll();
+    @RequestMapping(value = "/buy", method = RequestMethod.POST)
+    public Mono<ResponseEntity<Void>> buyItems(ServerWebExchange exchange) {
+        return cartService.findAll()
+                .collectList()
+                .flatMap(cartList -> {
+                    if (cartList.isEmpty()) {
+                        return Mono.error(new RuntimeException("Cart is empty"));
+                    }
 
-        if (cart.isEmpty()) {
-            return "redirect:/error";
-        }
+                    return orderService.createOrder(Flux.fromIterable(cartList))
+                            .flatMap(order -> {
+                                cartService.clearCart();
+                                String redirectUrl = "/orders/" + order.getId();
+                                exchange.getResponse().setStatusCode(HttpStatus.SEE_OTHER);
+                                exchange.getResponse().getHeaders().setLocation(URI.create(redirectUrl));
 
-        Order order = orderService.createOrder(cart);
-
-        cartService.clearCart();
-        redirectAttrs.addAttribute("order", order);
-        redirectAttrs.addFlashAttribute("newOrder", true);
-
-        return "redirect:/orders/" + order.getId();
+                                return Mono.just(ResponseEntity.ok().build());
+                            });
+                });
     }
 }

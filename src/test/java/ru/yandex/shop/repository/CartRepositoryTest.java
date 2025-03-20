@@ -4,17 +4,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
+import reactor.core.publisher.Mono;
 import ru.yandex.shop.common.TestCartFactory;
 import ru.yandex.shop.config.TestcontainersConfiguration;
 import ru.yandex.shop.model.Cart;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class CartRepositoryTest extends TestcontainersConfiguration{
@@ -27,7 +26,9 @@ class CartRepositoryTest extends TestcontainersConfiguration{
     void testSaveProduct() {
         Cart cart = TestCartFactory.createDefaultCart();
 
-        Cart savedCart = cartRepository.save(cart);
+        Mono<Cart> savedCartMono = cartRepository.save(cart);
+
+        Cart savedCart = savedCartMono.block();
 
         assertNotNull(savedCart.getId());
         assertEquals(1L, savedCart.getProductId());
@@ -36,17 +37,21 @@ class CartRepositoryTest extends TestcontainersConfiguration{
         assertEquals("http://test.com/image", savedCart.getImgPath());
     }
 
-    @DisplayName("Тестирование поиска несколько продуктов корзины в репозитории")
+    @DisplayName("Тестирование поиска нескольких продуктов корзины в репозитории")
     @Test
     void testFindAllProduct() {
         Cart productOne = TestCartFactory.createDefaultCart();
-        cartRepository.save(productOne);
-
         Cart productTwo = TestCartFactory.createDefaultCart();
-        cartRepository.save(productTwo);
 
-        List<Cart> listProduct =  cartRepository.findAll();
+        Mono<Void> saveAllMono = cartRepository.save(productOne)
+                .then(cartRepository.save(productTwo))
+                .then();
 
+        saveAllMono.block();
+
+        List<Cart> listProduct = cartRepository.findAll().collectList().block();
+
+        assertNotNull(listProduct);
         assertEquals(2, listProduct.size());
     }
 
@@ -54,11 +59,13 @@ class CartRepositoryTest extends TestcontainersConfiguration{
     @Test
     void testDeleteProduct() {
         Cart product = TestCartFactory.createDefaultCart();
-        Cart savedProduct = cartRepository.save(product);
 
-        cartRepository.deleteById(savedProduct.getId());
-        Cart deleteProduct = cartRepository.findById(savedProduct.getId()).orElse(null);
+        Cart savedProduct = cartRepository.save(product).block();
+        assertNotNull(savedProduct);
 
+        cartRepository.deleteById(savedProduct.getId()).block();
+
+        Cart deleteProduct = cartRepository.findById(savedProduct.getId()).block();
         assertNull(deleteProduct);
     }
 
@@ -66,27 +73,33 @@ class CartRepositoryTest extends TestcontainersConfiguration{
     @Test
     void testIncreaseCountByOne() {
         Cart product = TestCartFactory.createDefaultCart();
-        product = cartRepository.save(product);
-        int initialCount = product.getCount();
 
-        cartRepository.increaseCountByOne(product.getId());
-        Optional<Cart> updatedProduct = cartRepository.findById(product.getId());
+        Cart savedProduct = cartRepository.save(product).block();
+        assertNotNull(savedProduct);
 
-        assertTrue(updatedProduct.isPresent());
-        assertEquals(initialCount + 1, updatedProduct.get().getCount());
+        int initialCount = savedProduct.getCount();
+
+        cartRepository.increaseCountByOne(savedProduct.getId()).block();
+
+        Cart updatedProduct = cartRepository.findById(savedProduct.getId()).block();
+        assertNotNull(updatedProduct);
+        assertEquals(initialCount + 1, updatedProduct.getCount());
     }
 
     @DisplayName("Тестирование уменьшения счетчика продукта")
     @Test
     void testDecreaseCountByOne() {
         Cart product = TestCartFactory.createDefaultCart();
-        product = cartRepository.save(product);
-        int initialCount = product.getCount();
 
-        cartRepository.decreaseCountByOne(product.getId());
-        Optional<Cart> updatedProduct = cartRepository.findById(product.getId());
+        Cart savedProduct = cartRepository.save(product).block();
+        assertNotNull(savedProduct);
 
-        assertTrue(updatedProduct.isPresent());
-        assertEquals(initialCount - 1, updatedProduct.get().getCount());
+        int initialCount = savedProduct.getCount();
+
+        cartRepository.decreaseCountByOne(savedProduct.getId()).block();
+
+        Cart updatedProduct = cartRepository.findById(savedProduct.getId()).block();
+        assertNotNull(updatedProduct);
+        assertEquals(initialCount - 1, updatedProduct.getCount());
     }
 }

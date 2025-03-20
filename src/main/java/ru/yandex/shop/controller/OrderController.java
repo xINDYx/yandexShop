@@ -1,18 +1,19 @@
 package ru.yandex.shop.controller;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ui.Model;
-import org.springframework.stereotype.Controller;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 import ru.yandex.shop.model.Order;
 import ru.yandex.shop.service.OrderService;
 
 import java.util.List;
 
-@Controller
 @Slf4j
+@RestController
 @RequestMapping("/orders")
 public class OrderController {
 
@@ -23,24 +24,25 @@ public class OrderController {
     }
 
     @GetMapping
-    public String listOrders(Model model) {
-        log.info("Start orders");
-        List<Order> orders = orderService.findAllOrders();
-        log.info("orders = {}", orders);
-        long totalAmount = orders.stream().mapToLong(Order::getTotalSum).sum();
-        log.info("totalAmount = {}", totalAmount);
-        model.addAttribute("orders", orders);
-        model.addAttribute("totalAmount", totalAmount);
-
-        return "/orders";
+    public Mono<ResponseEntity<List<Order>>> listOrders() {
+        return orderService.findAllOrders()
+                .collectList()
+                .map(orders -> {
+                    long totalAmount = orders.stream().mapToLong(Order::getTotalSum).sum();
+                    log.info("Total Amount = {}", totalAmount);
+                    return ResponseEntity.ok(orders);
+                })
+                .defaultIfEmpty(ResponseEntity.noContent().build());
     }
 
     @GetMapping("/{id}")
-    public String viewOrder(@PathVariable Long id, Model model) {
-        log.info("Start order");
-        Order order = orderService.findById(id);
-        log.info("Order = {}", order);
-        model.addAttribute("order", order);
-        return "/order";
+    public Mono<ResponseEntity<Order>> viewOrder(@PathVariable Long id) {
+        return orderService.findById(id)
+                .map(order -> {
+                    log.info("Order = {}", order);
+                    return ResponseEntity.ok(order);
+                })
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 }
+

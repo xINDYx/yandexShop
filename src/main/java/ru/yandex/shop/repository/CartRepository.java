@@ -1,26 +1,22 @@
 package ru.yandex.shop.repository;
 
-import jakarta.transaction.Transactional;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.r2dbc.repository.Modifying;
+import org.springframework.data.r2dbc.repository.Query;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Mono;
 import ru.yandex.shop.model.Cart;
 
-import java.util.Optional;
-
 @Repository
-public interface CartRepository extends JpaRepository<Cart, Long> {
-    Optional<Cart> findByProductId(Long productId);
+public interface CartRepository extends ReactiveCrudRepository<Cart, Long> {
+
+    Mono<Cart> findByProductId(Long productId);
 
     @Modifying
-    @Transactional
-    @Query("UPDATE Cart c SET c.count = c.count + 1 WHERE c.id = :id")
-    void increaseCountByOne(@Param("id") Long id);
+    @Query("UPDATE cart SET count = count + 1 WHERE id = :id")
+    Mono<Integer> increaseCountByOne(Long id);
 
     @Modifying
-    @Transactional
-    @Query("UPDATE Cart c SET c.count = c.count - 1 WHERE c.id = :id")
-    void decreaseCountByOne(@Param("id") Long id);
+    @Query("UPDATE cart SET count = count - 1 WHERE id = :id")
+    Mono<Integer> decreaseCountByOne(Long id);
 }

@@ -1,0 +1,44 @@
+databaseChangeLog:
+  - include:
+      file: changeset/001-cart.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changeset/002-order.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changeset/003-order-item.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changeset/004-product.sql
+      relativeToChangelogFile: true
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

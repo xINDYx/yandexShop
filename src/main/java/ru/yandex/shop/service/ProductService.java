@@ -1,53 +1,47 @@
 package ru.yandex.shop.service;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.shop.model.Product;
 import ru.yandex.shop.repository.ProductRepository;
 
-import java.util.List;
-
 @Service
 public class ProductService {
-
-    public Product save(Product product) {
-        return productRepository.save(product);
-    }
-
     private final ProductRepository productRepository;
 
     public ProductService(ProductRepository productRepository) {
         this.productRepository = productRepository;
     }
 
-    public List<Product> findAll() {
+    public Mono<Product> save(Product product) {
+        return productRepository.save(product);
+    }
+
+    public Flux<Product> findAll() {
         return productRepository.findAll();
     }
 
-    public Product findById(Long id) {
-        return productRepository.findById(id).orElse(null);
+    public Mono<Product> findById(Long id) {
+        return productRepository.findById(id);
     }
 
-
-
-    public void delete(Long id) {
-        productRepository.deleteById(id);
+    public Mono<Void> delete(Long id) {
+        return productRepository.deleteById(id);
     }
 
-    public Page<Product> findAll(Pageable pageable) {
-        return productRepository.findAll(pageable);
+    public Flux<Product> findByTitleContaining(String name, Pageable pageable) {
+        int limit = pageable.getPageSize();
+        int offset = (int) pageable.getOffset();
+        return productRepository.findByTitleContaining(name, limit, offset);
     }
 
-    public Page<Product> findByTitleContaining(String name, Pageable pageable) {
-        return productRepository.findByTitleContaining(name, pageable);
+    public Mono<Void> increaseCountByOne(Long id) {
+        return productRepository.increaseCountByOne(id).then();
     }
 
-    public void increaseCountByOne(Long id) {
-        productRepository.increaseCountByOne(id);
-    }
-
-    public void decreaseCountByOne(Long id) {
-        productRepository.decreaseCountByOne(id);
+    public Mono<Void> decreaseCountByOne(Long id) {
+        return productRepository.decreaseCountByOne(id).then();
     }
 }

@@ -25,25 +25,26 @@ class OrderRepositoryTest extends TestcontainersConfiguration {
     void testSaveOrder() {
         Order order = TestOrderFactory.createDefaultOrder();
 
-        Order savedOrder = orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order).block();
+        assertNotNull(savedOrder);
 
         assertNotNull(savedOrder.getId());
         assertEquals(500L, savedOrder.getTotalSum());
-        assertNotNull(savedOrder.getItems());
-        assertEquals(2, savedOrder.getItems().size());
     }
 
     @DisplayName("Тестирование поиска всех заказов")
     @Test
     void testFindAllOrders() {
         Order orderOne = TestOrderFactory.createDefaultOrder();
-        orderRepository.save(orderOne);
-
         Order orderTwo = TestOrderFactory.createDefaultOrder();
-        orderRepository.save(orderTwo);
 
-        List<Order> orders = orderRepository.findAll();
+        orderRepository.save(orderOne)
+                .then(orderRepository.save(orderTwo))
+                .block();
 
+        List<Order> orders = orderRepository.findAll().collectList().block();
+
+        assertNotNull(orders);
         assertEquals(2, orders.size());
     }
 
@@ -51,11 +52,13 @@ class OrderRepositoryTest extends TestcontainersConfiguration {
     @Test
     void testDeleteOrder() {
         Order order = TestOrderFactory.createDefaultOrder();
-        Order savedOrder = orderRepository.save(order);
 
-        orderRepository.deleteById(savedOrder.getId());
-        Order deletedOrder = orderRepository.findById(savedOrder.getId()).orElse(null);
+        Order savedOrder = orderRepository.save(order).block();
+        assertNotNull(savedOrder);
 
+        orderRepository.deleteById(savedOrder.getId()).block();
+
+        Order deletedOrder = orderRepository.findById(savedOrder.getId()).block();
         assertNull(deletedOrder);
     }
 }

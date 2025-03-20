@@ -1,6 +1,5 @@
 package ru.yandex.shop.service;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,8 +10,6 @@ import ru.yandex.shop.model.Cart;
 import ru.yandex.shop.model.Product;
 import ru.yandex.shop.repository.CartRepository;
 import ru.yandex.shop.repository.ProductRepository;
-
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -32,81 +29,86 @@ public class CartServiceTest extends TestcontainersConfiguration {
     @DisplayName("Тестирование добавления товара в корзину")
     @Test
     void testAddToCart() {
-        Product product = productRepository.save(TestProductFactory.createDefaultProduct());
+        Product product = productRepository.save(TestProductFactory.createDefaultProduct()).block();
 
-        cartService.addToCart(product.getId());
+        cartService.addToCart(product.getId()).block();
 
-        List<Cart> carts = cartRepository.findAll();
-        assertEquals(1, carts.size());
-        assertEquals(product.getId(), carts.get(0).getProductId());
+        long cartCount = cartRepository.count().block();
+        Cart cart = cartRepository.findByProductId(product.getId()).block();
+
+        assertEquals(1, cartCount);
+        assertEquals(product.getId(), cart.getProductId());
     }
 
     @DisplayName("Тестирование поиска всех товаров в корзине")
     @Test
     void testFindAllCarts() {
-        Product product1 = productRepository.save(TestProductFactory.createDefaultProduct());
-        Product product2 = productRepository.save(TestProductFactory.createDefaultProduct());
+        Product product1 = productRepository.save(TestProductFactory.createDefaultProduct()).block();
+        Product product2 = productRepository.save(TestProductFactory.createDefaultProduct()).block();
 
-        cartService.addToCart(product1.getId());
-        cartService.addToCart(product2.getId());
+        cartService.addToCart(product1.getId()).block();
+        cartService.addToCart(product2.getId()).block();
 
-        List<Cart> carts = cartService.findAll();
-        assertEquals(2, carts.size());
+        long cartCount = cartRepository.count().block();
+
+        assertEquals(2, cartCount);
     }
 
     @DisplayName("Тестирование удаления товара из корзины")
     @Test
     void testDeleteFromCart() {
-        Product product = productRepository.save(TestProductFactory.createDefaultProduct());
-        cartService.addToCart(product.getId());
+        Product product = productRepository.save(TestProductFactory.createDefaultProduct()).block();
+        cartService.addToCart(product.getId()).block();
 
-        cartService.deleteFromCart(product.getId());
+        cartService.deleteFromCart(product.getId()).block();
 
-        assertTrue(cartRepository.findByProductId(product.getId()).isEmpty());
+        boolean isProductInCart = cartRepository.findByProductId(product.getId()).block() == null;
+        assertTrue(isProductInCart);
     }
 
     @DisplayName("Тестирование очистки корзины")
     @Test
     void testClearCart() {
-        Product product1 = productRepository.save(TestProductFactory.createDefaultProduct());
-        Product product2 = productRepository.save(TestProductFactory.createDefaultProduct());
+        Product product1 = productRepository.save(TestProductFactory.createDefaultProduct()).block();
+        Product product2 = productRepository.save(TestProductFactory.createDefaultProduct()).block();
 
-        cartService.addToCart(product1.getId());
-        cartService.addToCart(product2.getId());
+        cartService.addToCart(product1.getId()).block();
+        cartService.addToCart(product2.getId()).block();
 
-        cartService.clearCart();
+        cartService.clearCart().block();
 
-        assertTrue(cartRepository.findAll().isEmpty());
+        long cartCount = cartRepository.count().block();
+        assertEquals(0, cartCount);
     }
 
     @DisplayName("Тестирование увеличения количества товара в корзине")
     @Test
     void testIncreaseCountByOne() {
-        Product product = productRepository.save(TestProductFactory.createDefaultProduct());
-        cartService.addToCart(product.getId());
+        Product product = productRepository.save(TestProductFactory.createDefaultProduct()).block();
+        cartService.addToCart(product.getId()).block();
 
-        Cart cart = cartRepository.findByProductId(product.getId()).orElseThrow();
+        Cart cart = cartRepository.findByProductId(product.getId()).block();
         int initialCount = cart.getCount();
 
-        cartService.increaseCountByOne(cart.getId());
+        cartService.increaseCountByOne(cart.getId()).block();
 
-        Cart updatedCart = cartRepository.findById(cart.getId()).orElseThrow();
+        Cart updatedCart = cartRepository.findById(cart.getId()).block();
         assertEquals(initialCount + 1, updatedCart.getCount());
     }
 
     @DisplayName("Тестирование уменьшения количества товара в корзине")
     @Test
     void testDecreaseCountByOne() {
-        Product product = productRepository.save(TestProductFactory.createDefaultProduct());
-        cartService.addToCart(product.getId());
+        Product product = productRepository.save(TestProductFactory.createDefaultProduct()).block();
+        cartService.addToCart(product.getId()).block();
 
-        Cart cart = cartRepository.findByProductId(product.getId()).orElseThrow();
-        cartService.increaseCountByOne(cart.getId());
-        int initialCount = cartRepository.findById(cart.getId()).orElseThrow().getCount();
+        Cart cart = cartRepository.findByProductId(product.getId()).block();
+        cartService.increaseCountByOne(cart.getId()).block();
+        int initialCount = cartRepository.findById(cart.getId()).block().getCount();
 
-        cartService.decreaseCountByOne(cart.getId());
+        cartService.decreaseCountByOne(cart.getId()).block();
 
-        Cart updatedCart = cartRepository.findById(cart.getId()).orElseThrow();
+        Cart updatedCart = cartRepository.findById(cart.getId()).block();
         assertEquals(initialCount - 1, updatedCart.getCount());
     }
 }

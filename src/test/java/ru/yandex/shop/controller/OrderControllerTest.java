@@ -4,63 +4,61 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.shop.common.TestOrderFactory;
-import ru.yandex.shop.config.TestcontainersConfiguration;
 import ru.yandex.shop.model.Order;
 import ru.yandex.shop.service.OrderService;
 
 import java.util.List;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
-
-@SpringBootTest
-@AutoConfigureMockMvc
-class OrderControllerTest extends TestcontainersConfiguration {
+@WebFluxTest(OrderController.class)
+@ContextConfiguration(classes = {OrderController.class})
+class OrderControllerTest {
 
     @Autowired
-    private MockMvc mockMvc;
+    private WebTestClient webTestClient;
 
     @MockBean
     private OrderService orderService;
 
     @Test
-    @DisplayName("Тестирование отображения списка заказов")
-    void testListOrders() throws Exception {
+    @DisplayName("Тестирование получения списка заказов")
+    void testListOrders() {
         List<Order> orders = List.of(TestOrderFactory.createDefaultOrder(), TestOrderFactory.createDefaultOrder());
         long totalAmount = orders.stream().mapToLong(Order::getTotalSum).sum();
 
-        Mockito.when(orderService.findAllOrders()).thenReturn(orders);
+        Mockito.when(orderService.findAllOrders()).thenReturn(Flux.fromIterable(orders));
 
-        mockMvc.perform(get("/orders"))
-                .andExpect(status().isOk())
-                .andExpect(view().name("/orders"))
-                .andExpect(model().attribute("orders", orders))
-                .andExpect(model().attribute("totalAmount", totalAmount));
+        webTestClient.get().uri("/orders")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(Order.class)
+                .hasSize(orders.size());
 
         Mockito.verify(orderService).findAllOrders();
     }
 
     @Test
-    @DisplayName("Тестирование отображения заказа по ID")
-    void testViewOrder() throws Exception {
+    @DisplayName("Тестирование получения заказа по ID")
+    void testViewOrder() {
         Long orderId = 1L;
         Order order = TestOrderFactory.createDefaultOrder();
 
-        Mockito.when(orderService.findById(orderId)).thenReturn(order);
+        Mockito.when(orderService.findById(orderId)).thenReturn(Mono.just(order));
 
-        mockMvc.perform(get("/orders/{id}", orderId))
-                .andExpect(status().isOk())
-                .andExpect(view().name("/order"))
-                .andExpect(model().attribute("order", order));
+        webTestClient.get().uri("/orders/1")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .isEqualTo("{\"id\":null,\"totalSum\":500}");
 
         Mockito.verify(orderService).findById(orderId);
     }
 }
+
 

@@ -1,18 +1,25 @@
 package ru.yandex.shop.controller;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 import ru.yandex.shop.model.Product;
 import ru.yandex.shop.service.CartService;
 import ru.yandex.shop.service.ProductService;
 
-@Controller
-@RequestMapping
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Slf4j
+@RestController
+@RequestMapping("/products")
 public class ProductController {
 
     private final ProductService productService;
@@ -24,117 +31,110 @@ public class ProductController {
     }
 
     @GetMapping("/main")
-    public String listProducts(@RequestParam(value = "search", required = false) String search,
-                               @RequestParam(value = "sort", defaultValue = "NO") String sort,
-                               @RequestParam(value = "pageSize", defaultValue = "5") int pageSize,
-                               @RequestParam(value = "pageNumber", defaultValue = "0") int pageNumber,
-                               Model model) {
+    public Mono<ResponseEntity<Map<String, Object>>> listProducts(
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "sort", defaultValue = "NO") String sort,
+            @RequestParam(value = "pageSize", defaultValue = "5") int pageSize,
+            @RequestParam(value = "pageNumber", defaultValue = "0") int pageNumber) {
+
         Pageable pageable = PageRequest.of(pageNumber, pageSize, getSort(sort));
-        Page<Product> productPage;
+
+        Mono<List<Product>> productListMono;
 
         if (search != null && !search.isEmpty()) {
-            productPage = productService.findByTitleContaining(search, pageable);
+            productListMono = productService.findByTitleContaining(search, pageable)
+                    .collectList();
         } else {
-            productPage = productService.findAll(pageable);
+            productListMono = productService.findAll()
+                    .collectList();
         }
 
-        model.addAttribute("items", productPage.getContent());
-        model.addAttribute("paging", productPage);
-        model.addAttribute("search", search);
-        model.addAttribute("sort", sort);
-        model.addAttribute("pageSize", pageSize);
+        return productListMono
+                .map(productList -> {
+                    long totalItems = productList.size();
+                    int totalPages = (int) Math.ceil((double) totalItems / pageSize);
 
-        return "main";
+                    Page<Product> productPage = new PageImpl<>(productList, pageable, totalItems);
+
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("items", productPage.getContent());
+                    response.put("paging", productPage);
+                    response.put("search", search);
+                    response.put("sort", sort);
+                    response.put("pageSize", pageSize);
+
+                    return ResponseEntity.ok(response);
+                })
+                .defaultIfEmpty(ResponseEntity.noContent().build());
     }
 
     @GetMapping("/items/{id}")
-    public String getProduct(@PathVariable("id") Long id, Model model) {
-        Product product = productService.findById(id);
-        if (product == null) {
-            return "redirect:/error";
-        }
-
-        model.addAttribute("item", product);
-
-        return "item";
+    public Mono<ResponseEntity<Product>> getProduct(@PathVariable("id") Long id) {
+        return productService.findById(id)
+                .map(product -> ResponseEntity.ok(product))
+                .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/main/items/{id}/plus")
-    public String countAction(
+    public Mono<ResponseEntity<Void>> countAction(
             @PathVariable("id") Long id,
             @RequestParam("action") String action,
             @RequestParam(value = "search", required = false) String search,
             @RequestParam(value = "sort", defaultValue = "NO") String sort,
             @RequestParam(value = "pageSize", defaultValue = "5") int pageSize,
-            @RequestParam(value = "pageNumber", defaultValue = "0") int pageNumber,
-            Model model) {
+            @RequestParam(value = "pageNumber", defaultValue = "0") int pageNumber) {
 
-        try {
-            switch (action) {
-                case "minus":
-                    if (productService.findById(id).getCount() > 0) {
-                        productService.decreaseCountByOne(id);
-                        break;
-                    }
-                    break;
-                case "plus":
-                    productService.increaseCountByOne(id);
-                    break;
-                case "addToCart":
-                    cartService.addToCart(id);
-                    break;
-                case "deleteFromCart":
-                    cartService.deleteFromCart(id);
-                    break;
-                default:
-                    return "redirect:/error";
-            }
-        } catch (Exception e) {
-            return "redirect:/error";
+        switch (action) {
+            case "minus":
+                if (productService.findById(id).block().getCount() > 0) {
+                    productService.decreaseCountByOne(id).subscribe();
+                }
+                break;
+            case "plus":
+                productService.increaseCountByOne(id).subscribe();
+                break;
+            case "addToCart":
+                cartService.addToCart(id).subscribe();
+                break;
+            case "deleteFromCart":
+                cartService.deleteFromCart(id).subscribe();
+                break;
+            default:
+                return Mono.error(new IllegalArgumentException("Invalid action"));
         }
 
-        return "redirect:/main?search=" + search + "&sort=" + sort + "&pageSize=" + pageSize + "&pageNumber=" + pageNumber;
+        return Mono.just(ResponseEntity.ok().build());
     }
 
     @PostMapping("/items/{id}")
-    public String handleCartActions(
+    public Mono<ResponseEntity<Void>> handleCartActions(
             @PathVariable("id") Long id,
             @RequestParam("action") String action) {
 
-        try {
-            switch (action) {
-                case "minus":
-                    productService.decreaseCountByOne(id);
-                    break;
-                case "plus":
-                    productService.increaseCountByOne(id);
-                    break;
-                case "addToCart":
-                    cartService.addToCart(id);
-                    break;
-                case "deleteFromCart":
-                    cartService.deleteFromCart(id);
-                    break;
-                default:
-                    return "redirect:/error";
-            }
-        } catch (Exception e) {
-            return "redirect:/error";
+        switch (action) {
+            case "minus":
+                productService.decreaseCountByOne(id).subscribe();
+                break;
+            case "plus":
+                productService.increaseCountByOne(id).subscribe();
+                break;
+            case "addToCart":
+                cartService.addToCart(id).subscribe();
+                break;
+            case "deleteFromCart":
+                cartService.deleteFromCart(id).subscribe();
+                break;
+            default:
+                return Mono.error(new IllegalArgumentException("Invalid action"));
         }
 
-        return "redirect:/items/{id}";
-    }
-
-    @GetMapping("/new")
-    public String showProductForm(Model model) {
-        model.addAttribute("product", new Product());
-        return "product-form";
+        return Mono.just(ResponseEntity.ok().build());
     }
 
     @PostMapping("/save")
-    public String saveProduct(@ModelAttribute Product product) {
-        productService.save(product);
-        return "redirect:/new";
+    public Mono<ResponseEntity<Void>> saveProduct(@RequestBody Product product) {
+        return productService.save(product)
+                .thenReturn(ResponseEntity.ok().build());
     }
 
     private Sort getSort(String sort) {
@@ -144,5 +144,4 @@ public class ProductController {
             default -> Sort.unsorted();
         };
     }
-
 }
