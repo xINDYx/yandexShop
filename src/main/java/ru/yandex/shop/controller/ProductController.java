@@ -75,60 +75,81 @@ public class ProductController {
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
-    @PostMapping("/main/items/{id}/plus")
-    public Mono<ResponseEntity<Void>> countAction(
-            @PathVariable("id") Long id,
-            @RequestParam("action") String action,
-            @RequestParam(value = "search", required = false) String search,
-            @RequestParam(value = "sort", defaultValue = "NO") String sort,
-            @RequestParam(value = "pageSize", defaultValue = "5") int pageSize,
-            @RequestParam(value = "pageNumber", defaultValue = "0") int pageNumber) {
-
-        switch (action) {
-            case "minus":
-                if (productService.findById(id).block().getCount() > 0) {
-                    productService.decreaseCountByOne(id).subscribe();
-                }
-                break;
-            case "plus":
-                productService.increaseCountByOne(id).subscribe();
-                break;
-            case "addToCart":
-                cartService.addToCart(id).subscribe();
-                break;
-            case "deleteFromCart":
-                cartService.deleteFromCart(id).subscribe();
-                break;
-            default:
-                return Mono.error(new IllegalArgumentException("Invalid action"));
-        }
-
-        return Mono.just(ResponseEntity.ok().build());
+    @PostMapping("/main/items/{id}/minus")
+    public Mono<ResponseEntity<Void>> decreaseItemCount(@PathVariable Long id) {
+        return productService.findById(id)
+                .filter(product -> product.getCount() > 0)
+                .flatMap(product -> productService.decreaseCountByOne(id))
+                .thenReturn(ResponseEntity.ok().build());
     }
 
-    @PostMapping("/items/{id}")
-    public Mono<ResponseEntity<Void>> handleCartActions(
-            @PathVariable("id") Long id,
-            @RequestParam("action") String action) {
+    @PostMapping("/main/items/{id}/plus")
+    public Mono<ResponseEntity<Void>> increaseItemCount(@PathVariable Long id) {
+        return productService.increaseCountByOne(id)
+                .thenReturn(ResponseEntity.ok().build());
+    }
 
-        switch (action) {
-            case "minus":
-                productService.decreaseCountByOne(id).subscribe();
-                break;
-            case "plus":
-                productService.increaseCountByOne(id).subscribe();
-                break;
-            case "addToCart":
-                cartService.addToCart(id).subscribe();
-                break;
-            case "deleteFromCart":
-                cartService.deleteFromCart(id).subscribe();
-                break;
-            default:
-                return Mono.error(new IllegalArgumentException("Invalid action"));
-        }
+    @PostMapping("/main/items/{id}/addToCart")
+    public Mono<ResponseEntity<Void>> addToCart(@PathVariable Long id) {
+        return cartService.addToCart(id)
+                .thenReturn(ResponseEntity.ok().build());
+    }
 
-        return Mono.just(ResponseEntity.ok().build());
+    @PostMapping("/main/items/{id}/deleteFromCart")
+    public Mono<ResponseEntity<Void>> deleteFromCart(@PathVariable Long id) {
+        return cartService.deleteFromCart(id)
+                .thenReturn(ResponseEntity.ok().build());
+    }
+
+//    @PostMapping("/items/{id}")
+//    public Mono<ResponseEntity<Void>> handleCartActions(
+//            @PathVariable("id") Long id,
+//            @RequestParam("action") String action) {
+//
+//        switch (action) {
+//            case "minus":
+//                productService.decreaseCountByOne(id).subscribe();
+//                break;
+//            case "plus":
+//                productService.increaseCountByOne(id).subscribe();
+//                break;
+//            case "addToCart":
+//                cartService.addToCart(id).subscribe();
+//                break;
+//            case "deleteFromCart":
+//                cartService.deleteFromCart(id).subscribe();
+//                break;
+//            default:
+//                return Mono.error(new IllegalArgumentException("Invalid action"));
+//        }
+//
+//        return Mono.just(ResponseEntity.ok().build());
+//    }
+
+    @PostMapping("/items/{id}/minus")
+    public Mono<ResponseEntity<Void>> decreaseProductCount(@PathVariable Long id) {
+        return productService.findById(id)
+                .filter(product -> product.getCount() > 0)
+                .flatMap(product -> productService.decreaseCountByOne(id))
+                .thenReturn(ResponseEntity.ok().build());
+    }
+
+    @PostMapping("/items/{id}/plus")
+    public Mono<ResponseEntity<Void>> increaseProductCount(@PathVariable Long id) {
+        return productService.increaseCountByOne(id)
+                .thenReturn(ResponseEntity.ok().build());
+    }
+
+    @PostMapping("/items/{id}/addToCart")
+    public Mono<ResponseEntity<Void>> addProductToCart(@PathVariable Long id) {
+        return cartService.addToCart(id)
+                .thenReturn(ResponseEntity.ok().build());
+    }
+
+    @PostMapping("/items/{id}/deleteFromCart")
+    public Mono<ResponseEntity<Void>> deleteProductFromCart(@PathVariable Long id) {
+        return cartService.deleteFromCart(id)
+                .thenReturn(ResponseEntity.ok().build());
     }
 
     @PostMapping("/save")
