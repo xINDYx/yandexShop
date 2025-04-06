@@ -41,31 +41,30 @@ public class CartController {
                 });
     }
 
-    @PostMapping("/cart/items/{id}")
-    public Mono<ResponseEntity<Object>> countAction(
-            @PathVariable("id") Long id,
-            @RequestParam("action") String action) {
-
+    @PostMapping("/cart/items/{id}/minus")
+    public Mono<ResponseEntity<Object>> decreaseItemCount(@PathVariable Long id) {
         return cartService.findById(id)
                 .flatMap(cart -> {
-                    switch (action) {
-                        case "minus":
-                            if (cart.getCount() > 0) {
-                                cartService.decreaseCountByOne(id);
-                            }
-                            break;
-                        case "plus":
-                            cartService.increaseCountByOne(id);
-                            break;
-                        case "delete":
-                            cartService.deleteById(id);
-                            break;
-                        default:
-                            return Mono.error(new IllegalArgumentException("Invalid action"));
+                    if (cart.getCount() > 0) {
+                        return cartService.decreaseCountByOne(id).thenReturn(ResponseEntity.ok().build());
                     }
-                    return Mono.just(ResponseEntity.ok().build());
+                    return Mono.just(ResponseEntity.badRequest().build());
                 })
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Cart item not found")));
+                .switchIfEmpty(Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    @PostMapping("/cart/items/{id}/plus")
+    public Mono<ResponseEntity<Object>> increaseItemCount(@PathVariable Long id) {
+        return cartService.findById(id)
+                .flatMap(cart -> cartService.increaseCountByOne(id).then(Mono.just(ResponseEntity.ok().build())))
+                .switchIfEmpty(Mono.just(ResponseEntity.notFound().build()));
+    }
+
+    @PostMapping("/cart/items/{id}/delete")
+    public Mono<ResponseEntity<Object>> deleteItem(@PathVariable Long id) {
+        return cartService.findById(id)
+                .flatMap(cart -> cartService.deleteById(id).then(Mono.just(ResponseEntity.ok().build())))
+                .switchIfEmpty(Mono.just(ResponseEntity.notFound().build()));
     }
 
     @RequestMapping(value = "/buy", method = RequestMethod.POST)
