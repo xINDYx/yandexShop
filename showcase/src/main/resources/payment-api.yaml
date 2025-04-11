@@ -1,0 +1,72 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  version: 1.0.0
+
+paths:
+  /payment:
+    get:
+      tags:
+        - Payment
+      summary: Получить текущий баланс
+      operationId: getBalance
+      parameters:
+        - name: accountId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Баланс успешно получен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceDto'
+        '404':
+          description: Аккаунт не найден
+
+    post:
+      tags:
+        - Payment
+      summary: Провести платёж
+      operationId: makePayment
+      parameters:
+        - name: accountId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequestDto'
+      responses:
+        '200':
+          description: Платёж успешно проведён
+        '400':
+          description: Недостаточно средств или некорректные данные
+        '503':
+          description: Сервис недоступен
+
+components:
+  schemas:
+    BalanceDto:
+      type: object
+      properties:
+        balance:
+          type: number
+          format: double
+
+    PaymentRequestDto:
+      type: object
+      required:
+        - amount
+      properties:
+        amount:
+          type: number
+          format: double

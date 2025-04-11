@@ -1,0 +1,5 @@
+FROM openjdk:21-jdk-slim
+WORKDIR /app
+COPY payment-service/target/payment-service.jar payment-service.jar
+EXPOSE 8081
+CMD ["java", "-jar", "payment-service.jar"]

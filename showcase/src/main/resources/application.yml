@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: showcase
+
+  server:
+    port: 8080
+
+  # DB
+  datasource:
+    url: r2dbc:postgresql://postgresql:5432/showcase
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+
+  # JPA
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  main:
+    allow-bean-definition-overriding: true
+
+  sql:
+    init:
+      mode: always
+
+  # Liquibase
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+
+  # payment-service
+  payment:
+    service:
+      url: http://payment-service:8081
+
+  # Redis
+  redis:
+    host: redis_container
+    port: 6379
+    timeout: 2000
+    time-to-live: 60s
+
+  cache:
+    type: redis

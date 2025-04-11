@@ -1,32 +1,75 @@
 version: '3.8'
 
 services:
-  db:
+  postgres_showcase:
     image: postgres:latest
-    container_name: postgres_shopdb
+    container_name: postgres_showcase
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: shopdb
+      POSTGRES_DB: showcase
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - showcase_data:/var/lib/postgresql/data
     networks:
       - shop_network
 
-  app:
+  postgres_payment:
+    image: postgres:latest
+    container_name: postgres_payment
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: paymentservice
+    ports:
+      - "5433:5433"
+    volumes:
+      - payment_data:/var/lib/postgresql/data
+    networks:
+      - shop_network
+
+  showcase:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: shop
-    container_name: yandex_shop
+      dockerfile: Dockerfile.showcase
+    image: showcase
+    container_name: showcase_app
     working_dir: /app
-    command: [ "java", "-jar", "shop.jar" ]
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      - postgres_showcase
+    environment:
+      SPRING_DATASOURCE_URL: r2dbc:postgresql://postgres_showcase:5432/showcase
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    networks:
+      - shop_network
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.payment
+    image: payment-service
+    container_name: payment_service_app
+    working_dir: /app
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres_payment
+    environment:
+      SPRING_DATASOURCE_URL: r2dbc:postgresql://postgres_payment:5432/paymentservice
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    networks:
+      - shop_network
+      -
+  redis:
+    image: redis:latest
+    container_name: redis_container
+    ports:
+      - "6379:6379"
     networks:
       - shop_network
 
@@ -35,4 +78,5 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  showcase_data:
+  payment_data:

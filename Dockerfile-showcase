@@ -1,0 +1,5 @@
+FROM openjdk:21-jdk-slim
+WORKDIR /app
+COPY showcase/target/showcase.jar showcase.jar
+EXPOSE 8080
+CMD ["java", "-jar", "showcase.jar"]
