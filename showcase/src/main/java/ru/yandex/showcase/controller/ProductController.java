@@ -9,6 +9,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+import ru.yandex.showcase.exception.IllegalActionException;
 import ru.yandex.showcase.model.Product;
 import ru.yandex.showcase.service.CartService;
 import ru.yandex.showcase.service.ProductService;
@@ -100,7 +101,7 @@ public class ProductController {
                 cartService.deleteFromCart(id).subscribe();
                 break;
             default:
-                return Mono.error(new IllegalArgumentException("Invalid action"));
+                return Mono.error(new IllegalActionException("Invalid action"));
         }
 
         return Mono.just(ResponseEntity.ok().build());
@@ -125,7 +126,7 @@ public class ProductController {
                 cartService.deleteFromCart(id).subscribe();
                 break;
             default:
-                return Mono.error(new IllegalArgumentException("Invalid action"));
+                return Mono.error(new IllegalActionException("Invalid action"));
         }
 
         return Mono.just(ResponseEntity.ok().build());

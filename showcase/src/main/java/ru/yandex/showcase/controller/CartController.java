@@ -8,12 +8,18 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
 import ru.yandex.showcase.dto.CartView;
+import ru.yandex.showcase.exception.CartNotFoundException;
+import ru.yandex.showcase.exception.IllegalActionException;
+import ru.yandex.showcase.model.Cart;
+import ru.yandex.showcase.model.Order;
 import ru.yandex.showcase.payment.api.PaymentApi;
+import ru.yandex.showcase.payment.model.BalanceDto;
 import ru.yandex.showcase.payment.model.PaymentRequestDto;
 import ru.yandex.showcase.service.CartService;
 import ru.yandex.showcase.service.OrderService;
 
 import java.net.URI;
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -65,11 +71,11 @@ public class CartController {
                             cartService.deleteById(id);
                             break;
                         default:
-                            return Mono.error(new IllegalArgumentException("Invalid action"));
+                            return Mono.error(new IllegalActionException("Invalid action"));
                     }
                     return Mono.just(ResponseEntity.ok().build());
                 })
-                .switchIfEmpty(Mono.error(new IllegalArgumentException("Cart item not found")));
+                .switchIfEmpty(Mono.error(new CartNotFoundException("Cart item not found")));
     }
 
     @PostMapping("/buy")
@@ -78,36 +84,38 @@ public class CartController {
 
         return cartService.findAll()
                 .collectList()
-                .flatMap(cartList -> {
-                    if (cartList.isEmpty()) {
-                        return Mono.error(new RuntimeException("Cart is empty"));
+                .flatMap(cartList -> processCartAndCreateOrder(cartList, accountId, exchange));
+    }
+
+    private Mono<ResponseEntity<Void>> processCartAndCreateOrder(List<Cart> cartList, Long accountId, ServerWebExchange exchange) {
+        if (cartList.isEmpty()) {
+            return Mono.error(new RuntimeException("Cart is empty"));
+        }
+
+        return orderService.createOrder(Flux.fromIterable(cartList))
+                .flatMap(order -> processPayment(accountId, order, exchange));
+    }
+
+    private Mono<ResponseEntity<Void>> processPayment(Long accountId, Order order, ServerWebExchange exchange) {
+        double totalAmount = order.getTotalSum().doubleValue();
+
+        return paymentApi.getBalance(accountId)
+                .doOnNext(balanceDto -> log.info("Баланс = {}", balanceDto.getBalance()))
+                .flatMap(balanceDto -> {
+                    if (balanceDto.getBalance() < totalAmount) {
+                        return Mono.error(new RuntimeException("Недостаточно средств"));
                     }
 
-                    return orderService.createOrder(Flux.fromIterable(cartList))
-                            .flatMap(order -> {
-                                Double totalAmount = order.getTotalSum().doubleValue();
+                    PaymentRequestDto paymentRequest = new PaymentRequestDto().amount(totalAmount);
 
-                                return paymentApi.getBalance(accountId)
-                                        .doOnNext(balanceDto -> {
-                                            log.info("Баланс = {}", balanceDto.getBalance());
-                                        })
-                                        .flatMap(balanceDto -> {
-                                            if (balanceDto.getBalance() < totalAmount) {
-                                                return Mono.error(new RuntimeException("Недостаточно средств"));
-                                            }
-
-                                            PaymentRequestDto paymentRequest = new PaymentRequestDto().amount(totalAmount);
-
-                                            return paymentApi.makePayment(accountId, paymentRequest)
-                                                    .then(cartService.clearCart())
-                                                    .then(Mono.defer(() -> {
-                                                        String redirectUrl = "/orders/" + order.getId();
-                                                        exchange.getResponse().setStatusCode(HttpStatus.SEE_OTHER);
-                                                        exchange.getResponse().getHeaders().setLocation(URI.create(redirectUrl));
-                                                        return Mono.just(ResponseEntity.ok().build());
-                                                    }));
-                                        });
-                            });
+                    return paymentApi.makePayment(accountId, paymentRequest)
+                            .then(cartService.clearCart())
+                            .then(Mono.defer(() -> {
+                                String redirectUrl = "/orders/" + order.getId();
+                                exchange.getResponse().setStatusCode(HttpStatus.SEE_OTHER);
+                                exchange.getResponse().getHeaders().setLocation(URI.create(redirectUrl));
+                                return Mono.just(ResponseEntity.ok().build());
+                            }));
                 });
     }
 
