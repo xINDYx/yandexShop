@@ -2,6 +2,7 @@ package ru.yandex.showcase.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +25,7 @@ public class OrderController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<List<Order>>> listOrders() {
         return orderService.findAllOrders()
                 .collectList()
@@ -36,6 +38,7 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<Order>> viewOrder(@PathVariable Long id) {
         return orderService.findById(id)
                 .map(order -> {

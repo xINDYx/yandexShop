@@ -3,6 +3,7 @@ package ru.yandex.showcase.controller;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -37,6 +38,7 @@ public class CartController {
     }
 
     @GetMapping("/cart/items")
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity> listProducts() {
         return cartService.findAll()
                 .collectList()
@@ -52,6 +54,7 @@ public class CartController {
     }
 
     @PostMapping("/cart/items/{id}")
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<Object>> countAction(
             @PathVariable("id") Long id,
             @RequestParam("action") String action) {
@@ -79,6 +82,7 @@ public class CartController {
     }
 
     @PostMapping("/buy")
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<Void>> buyItems(ServerWebExchange exchange) {
         Long accountId = 1L;
 

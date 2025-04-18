@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 import ru.yandex.showcase.exception.IllegalActionException;
@@ -77,6 +78,7 @@ public class ProductController {
     }
 
     @PostMapping("/main/items/{id}/plus")
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<Void>> countAction(
             @PathVariable("id") Long id,
             @RequestParam("action") String action,
@@ -108,6 +110,7 @@ public class ProductController {
     }
 
     @PostMapping("/items/{id}")
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<Void>> handleCartActions(
             @PathVariable("id") Long id,
             @RequestParam("action") String action) {
@@ -133,6 +136,7 @@ public class ProductController {
     }
 
     @PostMapping("/save")
+    @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<Void>> saveProduct(@RequestBody Product product) {
         return productService.save(product)
                 .thenReturn(ResponseEntity.ok().build());
