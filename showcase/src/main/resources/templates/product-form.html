@@ -8,7 +8,7 @@
     <b>ГЛАВНАЯ &cudarrr;</b>
 </a>
 <h2>Добавить продукт</h2>
-<form th:action="@{/save}" th:object="${product}" method="post">
+<form th:productAction="@{/save}" th:object="${product}" method="post">
     <label>Изображение (путь):</label>
     <input type="text" th:field="*{imgPath}" required/><br/>
 

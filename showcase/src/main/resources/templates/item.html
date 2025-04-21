@@ -29,12 +29,12 @@
         <span th:text="${item.getDescription()}"></span>
     </p>
     <div sec:authorize="isAuthenticated()">
-        <form th:action="${'/items/'+item.getId()}" method="post">
-            <button name="action" value="minus">-</button>
+        <form th:productAction="${'/items/'+item.getId()}" method="post">
+            <button name="productAction" value="minus">-</button>
             <span th:text="${item.getCount()}"></span>
-            <button name="action" value="plus">+</button>
-            <button name="action" value="deleteFromCart" style="float:right;">Удалить из корзины</button>
-            <button name="action" value="addToCart" th:if="${item.getCount()!=0}" style="float:right;">В корзину
+            <button name="productAction" value="plus">+</button>
+            <button name="productAction" value="deleteFromCart" style="float:right;">Удалить из корзины</button>
+            <button name="productAction" value="addToCart" th:if="${item.getCount()!=0}" style="float:right;">В корзину
             </button>
         </form>
     </div>

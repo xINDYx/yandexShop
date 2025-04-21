@@ -9,12 +9,12 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
 import ru.yandex.showcase.dto.CartView;
+import ru.yandex.showcase.enums.CartAction;
 import ru.yandex.showcase.exception.CartNotFoundException;
 import ru.yandex.showcase.exception.IllegalActionException;
 import ru.yandex.showcase.model.Cart;
 import ru.yandex.showcase.model.Order;
 import ru.yandex.showcase.payment.api.PaymentApi;
-import ru.yandex.showcase.payment.model.BalanceDto;
 import ru.yandex.showcase.payment.model.PaymentRequestDto;
 import ru.yandex.showcase.service.CartService;
 import ru.yandex.showcase.service.OrderService;
@@ -57,26 +57,33 @@ public class CartController {
     @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<Object>> countAction(
             @PathVariable("id") Long id,
-            @RequestParam("action") String action) {
+            @RequestParam("action") String actionParam) {
+
+        CartAction action;
+        try {
+            action = CartAction.fromString(actionParam);
+        } catch (IllegalArgumentException e) {
+            return Mono.error(new IllegalActionException("Invalid action: " + actionParam));
+        }
 
         return cartService.findById(id)
                 .flatMap(cart -> {
+                    Mono<Void> operation;
                     switch (action) {
-                        case "minus":
+                        case MINUS -> {
                             if (cart.getCount() > 0) {
-                                cartService.decreaseCountByOne(id);
+                                operation = cartService.decreaseCountByOne(id);
+                            } else {
+                                operation = Mono.empty();
                             }
-                            break;
-                        case "plus":
-                            cartService.increaseCountByOne(id);
-                            break;
-                        case "delete":
-                            cartService.deleteById(id);
-                            break;
-                        default:
+                        }
+                        case PLUS -> operation = cartService.increaseCountByOne(id);
+                        case DELETE -> operation = cartService.deleteById(id);
+                        default -> {
                             return Mono.error(new IllegalActionException("Invalid action"));
+                        }
                     }
-                    return Mono.just(ResponseEntity.ok().build());
+                    return operation.then(Mono.just(ResponseEntity.ok().build()));
                 })
                 .switchIfEmpty(Mono.error(new CartNotFoundException("Cart item not found")));
     }

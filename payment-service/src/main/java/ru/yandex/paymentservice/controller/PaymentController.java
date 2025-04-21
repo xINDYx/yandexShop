@@ -46,12 +46,6 @@ public class PaymentController implements PaymentApi {
     ) {
         return paymentRequestDto
                 .flatMap(dto -> paymentService.makePayment(dto, accountId))
-                .thenReturn(ResponseEntity.ok().<Void>build())
-                .onErrorResume(e -> {
-                    if (e instanceof IllegalArgumentException || e instanceof IllegalStateException) {
-                        return Mono.just(ResponseEntity.badRequest().build());
-                    }
-                    return Mono.just(ResponseEntity.status(503).build());
-                });
+                .thenReturn(ResponseEntity.ok().<Void>build());
     }
 }

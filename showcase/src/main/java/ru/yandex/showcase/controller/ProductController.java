@@ -10,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+import ru.yandex.showcase.enums.ProductAction;
+import ru.yandex.showcase.enums.SortType;
 import ru.yandex.showcase.exception.IllegalActionException;
 import ru.yandex.showcase.model.Product;
 import ru.yandex.showcase.service.CartService;
@@ -39,7 +41,14 @@ public class ProductController {
             @RequestParam(value = "pageSize", defaultValue = "5") int pageSize,
             @RequestParam(value = "pageNumber", defaultValue = "0") int pageNumber) {
 
-        Pageable pageable = PageRequest.of(pageNumber, pageSize, getSort(sort));
+        SortType sortType;
+        try {
+            sortType = SortType.fromString(sort);
+        } catch (IllegalArgumentException e) {
+            return Mono.error(new IllegalActionException("Invalid action: " + sort));
+        }
+
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, getSort(sortType));
 
         Mono<List<Product>> productListMono;
 
@@ -54,8 +63,6 @@ public class ProductController {
         return productListMono
                 .map(productList -> {
                     long totalItems = productList.size();
-                    int totalPages = (int) Math.ceil((double) totalItems / pageSize);
-
                     Page<Product> productPage = new PageImpl<>(productList, pageable, totalItems);
 
                     Map<String, Object> response = new HashMap<>();
@@ -81,58 +88,56 @@ public class ProductController {
     @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<Void>> countAction(
             @PathVariable("id") Long id,
-            @RequestParam("action") String action,
+            @RequestParam("action") String actionParam,
             @RequestParam(value = "search", required = false) String search,
             @RequestParam(value = "sort", defaultValue = "NO") String sort,
             @RequestParam(value = "pageSize", defaultValue = "5") int pageSize,
             @RequestParam(value = "pageNumber", defaultValue = "0") int pageNumber) {
 
-        switch (action) {
-            case "minus":
-                if (productService.findById(id).block().getCount() > 0) {
-                    productService.decreaseCountByOne(id).subscribe();
-                }
-                break;
-            case "plus":
-                productService.increaseCountByOne(id).subscribe();
-                break;
-            case "addToCart":
-                cartService.addToCart(id).subscribe();
-                break;
-            case "deleteFromCart":
-                cartService.deleteFromCart(id).subscribe();
-                break;
-            default:
-                return Mono.error(new IllegalActionException("Invalid action"));
+        ProductAction productAction;
+        try {
+            productAction = ProductAction.fromString(actionParam);
+        } catch (IllegalArgumentException e) {
+            return Mono.error(new IllegalActionException("Invalid action: " + actionParam));
         }
 
-        return Mono.just(ResponseEntity.ok().build());
+        return switch (productAction) {
+            case MINUS -> productService.findById(id)
+                    .filter(product -> product.getCount() > 0)
+                    .flatMap(product -> productService.decreaseCountByOne(id))
+                    .then(Mono.just(ResponseEntity.ok().build()));
+            case PLUS -> productService.increaseCountByOne(id)
+                    .then(Mono.just(ResponseEntity.ok().build()));
+            case ADD_TO_CART -> cartService.addToCart(id)
+                    .then(Mono.just(ResponseEntity.ok().build()));
+            case DELETE_FROM_CART -> cartService.deleteFromCart(id)
+                    .then(Mono.just(ResponseEntity.ok().build()));
+        };
     }
 
     @PostMapping("/items/{id}")
     @PreAuthorize("isAuthenticated()")
     public Mono<ResponseEntity<Void>> handleCartActions(
             @PathVariable("id") Long id,
-            @RequestParam("action") String action) {
+            @RequestParam("action") String actionParam) {
 
-        switch (action) {
-            case "minus":
-                productService.decreaseCountByOne(id).subscribe();
-                break;
-            case "plus":
-                productService.increaseCountByOne(id).subscribe();
-                break;
-            case "addToCart":
-                cartService.addToCart(id).subscribe();
-                break;
-            case "deleteFromCart":
-                cartService.deleteFromCart(id).subscribe();
-                break;
-            default:
-                return Mono.error(new IllegalActionException("Invalid action"));
+        ProductAction productAction;
+        try {
+            productAction = ProductAction.fromString(actionParam);
+        } catch (IllegalArgumentException e) {
+            return Mono.error(new IllegalActionException("Invalid action: " + actionParam));
         }
 
-        return Mono.just(ResponseEntity.ok().build());
+        return switch (productAction) {
+            case MINUS -> productService.decreaseCountByOne(id)
+                    .thenReturn(ResponseEntity.ok().build());
+            case PLUS -> productService.increaseCountByOne(id)
+                    .thenReturn(ResponseEntity.ok().build());
+            case ADD_TO_CART -> cartService.addToCart(id)
+                    .thenReturn(ResponseEntity.ok().build());
+            case DELETE_FROM_CART -> cartService.deleteFromCart(id)
+                    .thenReturn(ResponseEntity.ok().build());
+        };
     }
 
     @PostMapping("/save")
@@ -142,11 +147,10 @@ public class ProductController {
                 .thenReturn(ResponseEntity.ok().build());
     }
 
-    private Sort getSort(String sort) {
+    private Sort getSort(SortType sort) {
         return switch (sort) {
-            case "ALPHA" -> Sort.by("title").ascending();
-            case "PRICE" -> Sort.by("price").ascending();
-            default -> Sort.unsorted();
+            case ALPHA -> Sort.by("title").ascending();
+            case PRICE -> Sort.by("price").ascending();
         };
     }
 }
